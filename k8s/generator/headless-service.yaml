@@ -1,0 +1,24 @@
+# Headless Service for the generator fleet: clusterIP None means its DNS A
+# records are the individual pod IPs, not a single VIP. The controller's
+# aggregate /health endpoint resolves this to probe *every* generator pod (the
+# load-balanced `generator` Service would only ever reach one).
+#
+# publishNotReadyAddresses=true so a pod that is up but failing readiness still
+# appears here and is reported unhealthy, instead of silently vanishing.
+apiVersion: v1
+kind: Service
+metadata:
+    name: generator-headless
+    namespace: telemetry-generator
+    labels:
+        app.kubernetes.io/name: generator
+        app.kubernetes.io/part-of: telemetry-generator
+spec:
+    clusterIP: None
+    publishNotReadyAddresses: true
+    selector:
+        app.kubernetes.io/name: generator
+    ports:
+        - name: http
+          port: 8080
+          targetPort: http

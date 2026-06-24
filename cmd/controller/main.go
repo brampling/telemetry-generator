@@ -12,9 +12,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/brampling/telemetry-generator/internal/health"
 	"github.com/brampling/telemetry-generator/internal/scheduler"
 	"github.com/brampling/telemetry-generator/internal/settings"
 	"github.com/brampling/telemetry-generator/internal/telemetry"
@@ -55,6 +57,13 @@ func main() {
 	}
 	go sched.Run(ctx)
 
+	// Aggregate health for the Dash0 synthetic check.
+	checker := health.New(
+		env("GENERATOR_HEADLESS", "generator-headless.telemetry-generator.svc.cluster.local"),
+		env("GENERATOR_PORT", "8080"),
+		atoiDefault(env("GENERATOR_EXPECTED", "0"), 0),
+	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, store.State())
@@ -74,6 +83,17 @@ func main() {
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	// Aggregate health for the Dash0 synthetic check: 200 when every service is
+	// healthy, 503 when anything is degraded. The JSON body breaks it down per
+	// service so the synthetic (or a human) can see what failed.
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		report := checker.Check(r.Context())
+		status := http.StatusOK
+		if !report.Healthy() {
+			status = http.StatusServiceUnavailable
+		}
+		writeJSON(w, status, report)
+	})
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -109,6 +129,13 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func env(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func atoiDefault(s string, def int) int {
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
 	}
 	return def
 }

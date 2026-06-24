@@ -49,6 +49,16 @@ spec:
                       # Where the scheduler sends each trace's first hop.
                       - name: GENERATOR_ENDPOINT
                         value: http://generator.telemetry-generator.svc.cluster.local
+                      # Health aggregation (/health, polled by the Dash0 synthetic):
+                      # the headless Service resolves to every generator pod, and
+                      # GENERATOR_EXPECTED must match the generator replica count so
+                      # a missing pod is reported as degraded.
+                      - name: GENERATOR_HEADLESS
+                        value: generator-headless.telemetry-generator.svc.cluster.local
+                      - name: GENERATOR_PORT
+                        value: "8080"
+                      - name: GENERATOR_EXPECTED
+                        value: "3"
                       # Enrich telemetry with pod/node identity via the downward API.
                       - name: POD_NAME
                         valueFrom:

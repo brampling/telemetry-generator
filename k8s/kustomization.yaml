@@ -9,6 +9,7 @@ resources:
     - controller/service.yaml
     - generator/deployment.yaml
     - generator/service.yaml
+    - generator/headless-service.yaml
 
 # Pin deployed image tags here (updated when a new image is built by CI).
 images:
