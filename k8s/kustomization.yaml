@@ -14,6 +14,6 @@ resources:
 # Pin deployed image tags here (updated when a new image is built by CI).
 images:
     - name: ghcr.io/brampling/telemetry-generator-controller
-      newTag: sha-80e087f
+      newTag: sha-3ad18d0
     - name: ghcr.io/brampling/telemetry-generator-generator
-      newTag: sha-80e087f
+      newTag: sha-3ad18d0
