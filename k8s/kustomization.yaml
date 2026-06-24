@@ -13,6 +13,6 @@ resources:
 # Pin deployed image tags here (updated when a new image is built by CI).
 images:
     - name: ghcr.io/brampling/telemetry-generator-controller
-      newTag: latest
+      newTag: sha-80e087f
     - name: ghcr.io/brampling/telemetry-generator-generator
-      newTag: latest
+      newTag: sha-80e087f
