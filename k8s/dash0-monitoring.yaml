@@ -1,0 +1,19 @@
+# Registers the telemetry-generator namespace with the Dash0 operator.
+#
+# IMPORTANT: instrumentWorkloads.mode=none. Both services ship their own
+# OpenTelemetry SDK and export OTLP directly to the collector — we do NOT want
+# the operator injecting language agents (auto-instrumentation) on top of the
+# synthetic telemetry this app already produces.
+#
+# logCollection is disabled: the services emit logs through the OTel SDK
+# (explicit), so the operator's filelog receiver should not also scrape stdout.
+apiVersion: operator.dash0.com/v1beta1
+kind: Dash0Monitoring
+metadata:
+    name: telemetry-generator
+    namespace: telemetry-generator
+spec:
+    instrumentWorkloads:
+        mode: none
+    logCollection:
+        enabled: false

@@ -1,0 +1,11 @@
+# telemetry-generator namespace. ArgoCD adopts this (CreateNamespace is also
+# enabled on the Application as a fallback). Baseline pod-security is sufficient:
+# every workload here runs unprivileged, non-root, with all capabilities dropped.
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: telemetry-generator
+    labels:
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/audit: restricted
+        pod-security.kubernetes.io/warn: restricted

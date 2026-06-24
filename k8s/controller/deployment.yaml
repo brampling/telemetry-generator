@@ -1,0 +1,91 @@
+# Controller: serves the web UI + settings API and runs the scheduler that
+# initiates traces. Single replica — settings live in memory and one scheduler
+# owns the global generation rate (no double-counting across replicas).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: controller
+    namespace: telemetry-generator
+    labels:
+        app.kubernetes.io/name: controller
+        app.kubernetes.io/part-of: telemetry-generator
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app.kubernetes.io/name: controller
+    template:
+        metadata:
+            labels:
+                app.kubernetes.io/name: controller
+                app.kubernetes.io/part-of: telemetry-generator
+        spec:
+            imagePullSecrets:
+                - name: ghcr-pull
+            securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+                fsGroup: 65532
+                seccompProfile:
+                    type: RuntimeDefault
+            containers:
+                - name: controller
+                  image: ghcr.io/brampling/telemetry-generator-controller:latest
+                  ports:
+                      - name: http
+                        containerPort: 8080
+                  env:
+                      - name: OTEL_SERVICE_NAME
+                        value: telemetry-generator-controller
+                      # OTLP target. The Dash0 operator's cluster collector today;
+                      # point this at a custom collector later by editing it here.
+                      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                        value: http://dash0-operator-opentelemetry-collector-service.dash0-system.svc.cluster.local:4317
+                      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                        value: grpc
+                      - name: DEPLOY_ENV
+                        value: picluster
+                      # Where the scheduler sends each trace's first hop.
+                      - name: GENERATOR_ENDPOINT
+                        value: http://generator.telemetry-generator.svc.cluster.local
+                      # Enrich telemetry with pod/node identity via the downward API.
+                      - name: POD_NAME
+                        valueFrom:
+                            fieldRef:
+                                fieldPath: metadata.name
+                      - name: POD_NAMESPACE
+                        valueFrom:
+                            fieldRef:
+                                fieldPath: metadata.namespace
+                      - name: NODE_NAME
+                        valueFrom:
+                            fieldRef:
+                                fieldPath: spec.nodeName
+                      - name: OTEL_RESOURCE_ATTRIBUTES
+                        value: k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE),k8s.node.name=$(NODE_NAME)
+                  securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                          drop:
+                              - ALL
+                  resources:
+                      requests:
+                          cpu: 25m
+                          memory: 48Mi
+                      limits:
+                          cpu: 250m
+                          memory: 128Mi
+                  livenessProbe:
+                      httpGet:
+                          path: /healthz
+                          port: http
+                      initialDelaySeconds: 5
+                      periodSeconds: 15
+                  readinessProbe:
+                      httpGet:
+                          path: /readyz
+                          port: http
+                      initialDelaySeconds: 3
+                      periodSeconds: 10

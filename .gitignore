@@ -1,0 +1,9 @@
+# Go
+/bin/
+*.out
+
+# Local env / editor
+.env
+.env.local
+*.local
+.DS_Store

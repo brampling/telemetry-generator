@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Telemetry Generator</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #181b22;
+        --border: #2a2f3a;
+        --text: #e6e9ef;
+        --muted: #9aa3b2;
+        --accent: #5b8cff;
+        --on: #2ecc71;
+        --off: #59616f;
+        --danger: #ff5b6e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+      .card {
+        width: 100%;
+        max-width: 560px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 28px;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0; }
+      .row label { font-weight: 600; }
+      .row .hint { color: var(--muted); font-size: 12px; font-weight: 400; display: block; margin-top: 2px; }
+      input[type="range"] { flex: 1; accent-color: var(--accent); }
+      .val { min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+      .switch { position: relative; width: 64px; height: 34px; flex: none; }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider {
+        position: absolute; inset: 0; cursor: pointer;
+        background: var(--off); border-radius: 34px; transition: .2s;
+      }
+      .slider::before {
+        content: ""; position: absolute; height: 26px; width: 26px; left: 4px; top: 4px;
+        background: #fff; border-radius: 50%; transition: .2s;
+      }
+      input:checked + .slider { background: var(--on); }
+      input:checked + .slider::before { transform: translateX(30px); }
+      .status {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 14px; border-radius: 10px; background: #11141a;
+        border: 1px solid var(--border); margin-bottom: 22px; font-size: 14px;
+      }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--off); flex: none; }
+      .dot.on { background: var(--on); box-shadow: 0 0 0 4px rgba(46,204,113,.18); }
+      .countdown { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .actions { display: flex; gap: 12px; margin-top: 26px; }
+      button {
+        flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+        background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer;
+      }
+      button.secondary { background: transparent; color: var(--text); }
+      button:disabled { opacity: .5; cursor: default; }
+      hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+      .saved { color: var(--on); font-size: 13px; height: 18px; margin-top: 12px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Telemetry Generator</h1>
+      <p class="sub">Emits synthetic multi-span traces, logs, and metrics to Dash0, fanned out across the generator pods.</p>
+
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="statusText">Loading…</span>
+        <span class="countdown" id="countdown"></span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="enabled">Generation</label>
+          <span class="hint">Master on/off switch</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="enabled" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <hr />
+
+      <div class="row">
+        <div>
+          <label for="density">Density</label>
+          <span class="hint">Traces generated per second</span>
+        </div>
+        <input type="range" id="density" min="0.1" max="50" step="0.1" />
+        <span class="val" id="densityVal"></span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="workMillis">Span time</label>
+          <span class="hint">Synthetic work per span (jittered)</span>
+        </div>
+        <input type="range" id="workMillis" min="0" max="1000" step="5" />
+        <span class="val" id="workMillisVal"></span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="depth">Trace depth</label>
+          <span class="hint">Hops a trace fans out across pods</span>
+        </div>
+        <input type="range" id="depth" min="1" max="8" step="1" />
+        <span class="val" id="depthVal"></span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="fanout">Fan-out</label>
+          <span class="hint">Peer calls per hop</span>
+        </div>
+        <input type="range" id="fanout" min="1" max="5" step="1" />
+        <span class="val" id="fanoutVal"></span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="duration">Auto-off after</label>
+          <span class="hint">Stops itself when this elapses (0 = never)</span>
+        </div>
+        <input type="range" id="duration" min="0" max="3600" step="30" />
+        <span class="val" id="durationVal"></span>
+      </div>
+
+      <div class="actions">
+        <button class="secondary" id="reload" type="button">Reload</button>
+        <button id="save" type="button">Save &amp; apply</button>
+      </div>
+      <div class="saved" id="saved"></div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const fields = ["enabled", "density", "workMillis", "depth", "fanout", "duration"];
+      let countdownTimer = null;
+
+      function fmtDuration(s) {
+        if (s <= 0) return "never";
+        if (s < 60) return s + "s";
+        const m = Math.floor(s / 60), r = s % 60;
+        return r ? `${m}m ${r}s` : `${m}m`;
+      }
+
+      function render() {
+        $("densityVal").textContent = (+$("density").value).toFixed(1) + "/s";
+        $("workMillisVal").textContent = $("workMillis").value + " ms";
+        $("depthVal").textContent = $("depth").value;
+        $("fanoutVal").textContent = $("fanout").value;
+        $("durationVal").textContent = fmtDuration(+$("duration").value);
+      }
+
+      function applyState(s) {
+        $("enabled").checked = s.enabled;
+        $("density").value = s.density;
+        $("workMillis").value = s.workMillis;
+        $("depth").value = s.depth;
+        $("fanout").value = s.fanout;
+        $("duration").value = s.durationSeconds;
+        render();
+        setStatus(s);
+      }
+
+      function setStatus(s) {
+        $("dot").className = "dot" + (s.enabled ? " on" : "");
+        $("statusText").textContent = s.enabled ? "Generating telemetry" : "Stopped";
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+        if (s.enabled && typeof s.remainingSeconds === "number") {
+          let left = s.remainingSeconds;
+          const tick = () => {
+            $("countdown").textContent = left > 0 ? "auto-off in " + fmtDuration(left) : "stopping…";
+            left--;
+          };
+          tick();
+          countdownTimer = setInterval(tick, 1000);
+        } else {
+          $("countdown").textContent = "";
+        }
+      }
+
+      async function load() {
+        const r = await fetch("/api/settings");
+        applyState(await r.json());
+      }
+
+      async function save() {
+        $("save").disabled = true;
+        const body = {
+          enabled: $("enabled").checked,
+          density: +$("density").value,
+          workMillis: +$("workMillis").value,
+          depth: +$("depth").value,
+          fanout: +$("fanout").value,
+          durationSeconds: +$("duration").value,
+        };
+        const r = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        applyState(await r.json());
+        $("save").disabled = false;
+        $("saved").textContent = "Saved";
+        setTimeout(() => ($("saved").textContent = ""), 1500);
+      }
+
+      fields.forEach((f) => $(f).addEventListener("input", render));
+      $("save").addEventListener("click", save);
+      $("reload").addEventListener("click", load);
+      load();
+    </script>
+  </body>
+</html>

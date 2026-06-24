@@ -1,0 +1,9 @@
+# Keep the build context small: only the Go module and embedded assets are
+# needed. Everything else (k8s manifests, CI, docs) is irrelevant to the build.
+.git
+.github
+k8s
+README.md
+LICENSE
+*.md
+bin

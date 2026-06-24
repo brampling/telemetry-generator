@@ -1,0 +1,21 @@
+name: gitleaks
+
+# Secret scanning as a safety net. Runs on every push and PR; scans the full
+# git history (fetch-depth: 0). Mirrors the home-lab repo's setup.
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+jobs:
+    scan:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Run gitleaks
+              uses: gitleaks/gitleaks-action@v2
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

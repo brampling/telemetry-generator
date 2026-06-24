@@ -1,0 +1,18 @@
+# ClusterIP fronting the generator fleet. Both the controller (first hop) and
+# the generators themselves (peer fan-out) call this; it load-balances across
+# the replicas, which is what scatters a trace's spans across pods/nodes.
+apiVersion: v1
+kind: Service
+metadata:
+    name: generator
+    namespace: telemetry-generator
+    labels:
+        app.kubernetes.io/name: generator
+        app.kubernetes.io/part-of: telemetry-generator
+spec:
+    selector:
+        app.kubernetes.io/name: generator
+    ports:
+        - name: http
+          port: 80
+          targetPort: http

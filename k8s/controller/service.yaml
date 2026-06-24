@@ -1,0 +1,18 @@
+# ClusterIP for the controller UI/API. Reached in-cluster by name; the
+# Cloudflare Tunnel routes a public hostname here (configured in the Cloudflare
+# Zero Trust dashboard, not in git).
+apiVersion: v1
+kind: Service
+metadata:
+    name: controller
+    namespace: telemetry-generator
+    labels:
+        app.kubernetes.io/name: controller
+        app.kubernetes.io/part-of: telemetry-generator
+spec:
+    selector:
+        app.kubernetes.io/name: controller
+    ports:
+        - name: http
+          port: 80
+          targetPort: http

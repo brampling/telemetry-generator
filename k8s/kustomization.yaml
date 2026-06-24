@@ -1,0 +1,18 @@
+# Kustomize base for the telemetry-generator app. ArgoCD points at this dir.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+    - namespace.yaml
+    - dash0-monitoring.yaml
+    - controller/deployment.yaml
+    - controller/service.yaml
+    - generator/deployment.yaml
+    - generator/service.yaml
+
+# Pin deployed image tags here (updated when a new image is built by CI).
+images:
+    - name: ghcr.io/brampling/telemetry-generator-controller
+      newTag: latest
+    - name: ghcr.io/brampling/telemetry-generator-generator
+      newTag: latest
