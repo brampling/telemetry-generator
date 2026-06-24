@@ -92,9 +92,30 @@ collector, which already holds it.
 ### Access the UI
 
 - **In-cluster / LAN:** `kubectl -n telemetry-generator port-forward svc/controller 8080:80` then open <http://localhost:8080>.
-- **Public:** add a Cloudflare Tunnel public hostname routing to
-  `http://controller.telemetry-generator.svc.cluster.local:80` in the Cloudflare
-  Zero Trust dashboard.
+- **Public:** add a Cloudflare Tunnel public hostname in the Cloudflare Zero Trust
+  dashboard with **Service** = `http://controller.telemetry-generator.svc.cluster.local:80`
+  (`cloudflared` runs in-cluster, so it resolves the Service name directly).
+
+### Health check (Dash0 synthetic)
+
+`GET /health` on the controller aggregates the health of the whole app into one
+response for an external monitor:
+
+- **`200`** when the controller and every generator pod are healthy.
+- **`503`** when anything is degraded — a generator pod failing `/readyz`, or
+  fewer than `GENERATOR_EXPECTED` (`3`, matching the generator replica count)
+  healthy pods discovered.
+
+The controller resolves the `generator-headless` Service (one DNS record per
+pod) and probes each pod's `/readyz` concurrently, so a single `/health` poll
+covers all pods — not just the one a load-balanced Service would hit. The JSON
+body breaks the result down per service with per-pod latency.
+
+Point a Dash0 synthetic check at `https://<your-hostname>/health` and assert on
+HTTP `200` (optionally also on body `"status":"ok"`).
+
+> Keep `GENERATOR_EXPECTED` on the controller Deployment in sync with the
+> generator `replicas` — otherwise a removed/added replica is misreported.
 
 ### Verify it's working
 
