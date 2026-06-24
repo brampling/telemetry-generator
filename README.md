@@ -102,17 +102,40 @@ collector, which already holds it.
 response for an external monitor:
 
 - **`200`** when the controller and every generator pod are healthy.
-- **`503`** when anything is degraded — a generator pod failing `/readyz`, or
+- **`503`** when anything is degraded — a generator pod failing its probe, or
   fewer than `GENERATOR_EXPECTED` (`3`, matching the generator replica count)
   healthy pods discovered.
 
 The controller resolves the `generator-headless` Service (one DNS record per
-pod) and probes each pod's `/readyz` concurrently, so a single `/health` poll
-covers all pods — not just the one a load-balanced Service would hit. The JSON
-body breaks the result down per service with per-pod latency.
+pod) and probes each pod concurrently, so a single `/health` poll covers all
+pods — not just the one a load-balanced Service would hit. The JSON body breaks
+the result down per service with per-pod latency.
 
 Point a Dash0 synthetic check at `https://<your-hostname>/health` and assert on
 HTTP `200` (optionally also on body `"status":"ok"`).
+
+**The `/health` poll is itself traced**, so a red synthetic can be diagnosed
+from its trace alone — which pod failed and why — without reaching into the
+cluster. The synthetic's incoming trace context opens a server span on the
+controller, which fans a client span out to each generator pod through a
+dedicated instrumented `/probe` endpoint:
+
+```
+GET /health                 controller   (root; health.status, generator counts)
+   ├─ probe generator        controller   (client; generator.instance, probe.latency_ms)
+   │     └─ GET /probe        generator A  (server span on the pod)
+   ├─ probe generator        controller   ──▶ GET /probe   generator B
+   └─ probe generator        controller   ──▶ GET /probe   generator C
+```
+
+Each `probe generator` span carries the pod IP and latency; on failure it goes
+to error status with the reason (connection refused, timeout, non-`200`), so a
+**down pod still appears as a red span even though it emits no server span of
+its own**. The root `GET /health` span carries the aggregate verdict and turns
+red when degraded. The kubelet's own `/healthz`/`/readyz` liveness/readiness
+probes are deliberately **not** instrumented (they fire constantly and would
+bury the real traces in probe-span noise) — only the controller-driven `/probe`
+is traced.
 
 > Keep `GENERATOR_EXPECTED` on the controller Deployment in sync with the
 > generator `replicas` — otherwise a removed/added replica is misreported.
