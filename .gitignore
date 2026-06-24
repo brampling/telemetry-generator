@@ -7,3 +7,7 @@
 .env.local
 *.local
 .DS_Store
+
+# Local Claude Code context — kept out of this public repo
+CLAUDE.md
+CLAUDE.local.md
