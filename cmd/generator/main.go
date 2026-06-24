@@ -68,9 +68,18 @@ func main() {
 			return r.Method + " " + r.URL.Path
 		}),
 	))
-	// Health endpoints are intentionally not instrumented (no probe-trace noise).
+	// Kubelet liveness/readiness probes are intentionally not instrumented: they
+	// fire constantly and would bury the real traces in probe-span noise.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	// /probe is the controller health checker's per-pod entrypoint. Unlike the
+	// kubelet probes it IS instrumented (otelhttp extracts the incoming trace
+	// context from the synthetic check) so each /health poll produces a span on
+	// every generator pod, fanning the synthetic trace across the fleet.
+	mux.Handle("/probe", otelhttp.NewHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }),
+		"probe",
+	))
 
 	srv := &http.Server{Addr: ":8080", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 

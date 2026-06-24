@@ -21,6 +21,10 @@ import (
 	"github.com/brampling/telemetry-generator/internal/settings"
 	"github.com/brampling/telemetry-generator/internal/telemetry"
 	"github.com/brampling/telemetry-generator/internal/ui"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".
@@ -86,14 +90,31 @@ func main() {
 	// Aggregate health for the Dash0 synthetic check: 200 when every service is
 	// healthy, 503 when anything is degraded. The JSON body breaks it down per
 	// service so the synthetic (or a human) can see what failed.
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	//
+	// Wrapped with otelhttp so the synthetic's incoming trace context opens a
+	// server span: the checker fans child spans out to every generator pod, and
+	// the verdict below is stamped onto the root span. The result is that a red
+	// synthetic can be diagnosed entirely from its trace — which pod, and why —
+	// without reaching into the cluster.
+	healthHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		report := checker.Check(r.Context())
 		status := http.StatusOK
 		if !report.Healthy() {
 			status = http.StatusServiceUnavailable
 		}
+		span := trace.SpanFromContext(r.Context())
+		span.SetAttributes(
+			attribute.String("health.status", report.Status),
+			attribute.Int("health.generators.expected", report.Generators.Expected),
+			attribute.Int("health.generators.discovered", report.Generators.Discovered),
+			attribute.Int("health.generators.healthy", report.Generators.Healthy),
+		)
+		if !report.Healthy() {
+			span.SetStatus(codes.Error, "health degraded")
+		}
 		writeJSON(w, status, report)
 	})
+	mux.Handle("GET /health", otelhttp.NewHandler(healthHandler, "GET /health"))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
